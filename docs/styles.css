@@ -240,6 +240,9 @@ svg.i.inline {
   margin: 2px 0 14px;
   white-space: nowrap;
 }
+.hero-amount.long {
+  font-size: 36px;
+}
 .hero-amount.center {
   text-align: center;
   margin-bottom: 6px;
@@ -300,6 +303,8 @@ svg.i.inline {
   font-size: 16px;
   font-weight: 650;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .budget {
@@ -1055,6 +1060,13 @@ svg.i.inline {
 .key.fn {
   background: transparent;
 }
+.key.zeros {
+  font-size: 21px;
+}
+.cat.edit .e {
+  background: var(--fill);
+  color: var(--text-2);
+}
 .key:active {
   background: var(--fill-2);
   transform: scale(0.96);
@@ -1168,6 +1180,9 @@ svg.i.inline {
   font-size: 13px;
   color: var(--text-3);
   margin: 7px 32px 0;
+}
+.group-note.top {
+  margin: 4px 32px 12px;
 }
 .row {
   display: flex;
@@ -1415,13 +1430,37 @@ select.row-input {
 .swatches {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 9px;
+  padding: 2px 2px 0;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 8px;
+}
+.sheet:not(.tall) .emoji-grid {
+  background: var(--fill);
+}
+.em {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  font-size: 23px;
+  display: grid;
+  place-items: center;
+}
+.em.sel {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+.em:active {
+  transform: scale(0.9);
 }
 .sw {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--c);
   box-shadow: 0 0 0 0 var(--c);

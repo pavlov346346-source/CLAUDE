@@ -4,8 +4,27 @@ import * as F from './format.js';
 import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 
-const VERSION = '1.0';
-const CURRENCIES = ['₽', '$', '€', '₸', '₴', 'Br', '₾', '֏', 'сум', '₺', '£', 'zł'];
+const VERSION = '1.1';
+const CURRENCIES = [
+  ['₽', 'российский рубль'],
+  ['Rp', 'индонезийская рупия'],
+  ['$', 'доллар'],
+  ['€', 'евро'],
+  ['₸', 'тенге'],
+  ['₴', 'гривна'],
+  ['₾', 'лари'],
+  ['฿', 'тайский бат'],
+  ['Br', 'белорусский рубль'],
+  ['֏', 'драм'],
+  ['сум', 'узбекский сум'],
+  ['₺', 'турецкая лира'],
+  ['₫', 'вьетнамский донг'],
+  ['£', 'фунт'],
+  ['zł', 'злотый'],
+];
+// у этих валют копейки не используют — на клавиатуре вместо запятой кнопка «000»
+const NO_CENTS = new Set(['Rp', 'сум', '₫']);
+const EMOJIS = ['🛒', '🍎', '🥖', '🍜', '🍔', '🍕', '☕️', '🍺', '🍷', '🚕', '🛵', '🚌', '🚗', '⛽️', '✈️', '🏝️', '🏠', '💡', '💧', '📱', '💻', '🛍️', '👕', '👟', '💄', '💅', '💊', '🦷', '🎬', '🎮', '🎁', '🎉', '📚', '👶', '🧸', '🐶', '🏋️', '⚽️', '🏨', '💼', '💳', '🧾', '🔧', '🧹', '🙏', '💰', '📦', '🏷️'];
 
 const store = new Store();
 const sync = new Sync(store);
@@ -30,6 +49,8 @@ const standalone = navigator.standalone === true || matchMedia('(display-mode: s
 
 const cur = () => store.cfg.currency || '₽';
 const money = (c) => F.money(c, cur());
+// для узких мест: миллионы сокращаем до «12,7 млн» (валюта видна в большой сумме рядом)
+const moneyFit = (c) => (c >= 1e8 ? F.compact(c) : money(c));
 const sum = (list) => list.reduce((a, e) => a + e.amount, 0);
 const colorVar = (name) => `var(--c-${COLORS.includes(name) ? name : 'gray'})`;
 const catOf = (id) => store.catMap[id] || { id, emoji: '❔', name: 'Без категории', color: 'gray' };
@@ -119,8 +140,8 @@ function homeView() {
   const monthIdx = Number(ym.slice(5)) - 1;
 
   const pills = [
-    isCur ? ['Сегодня', money(sum(list.filter((e) => e.date === t)))] : null,
-    ['Средний день', money(Math.round(total / days / 100) * 100)],
+    isCur ? ['Сегодня', moneyFit(sum(list.filter((e) => e.date === t)))] : null,
+    ['Средний день', moneyFit(Math.round(total / days / 100) * 100)],
     [F.plural(list.length, ['Трата', 'Траты', 'Трат']), String(list.length)],
   ].filter(Boolean);
 
@@ -152,7 +173,7 @@ function homeView() {
   <section class="hero">
     <div class="hero-in">
       <div class="hero-label">Потрачено в ${F.MONTHS_PREP[monthIdx]}</div>
-      <div class="hero-amount">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
+      <div class="hero-amount${F.num(total).length > 9 ? ' long' : ''}">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
       ${budgetBlock(total, ym, isCur)}
       <div class="pills">${pills.map(([k, v]) => `<div class="pill"><small>${k}</small><b>${v}</b></div>`).join('')}</div>
     </div>
@@ -290,9 +311,9 @@ function categoriesCard(list, total) {
   if (sel) {
     const name = sel.id === '_rest' ? 'Остальное' : catOf(sel.id).name;
     const emoji = sel.id === '_rest' ? '•••' : catOf(sel.id).emoji;
-    center = `<small>${F.esc(emoji)} ${F.esc(name)}</small><b>${money(sel.v)}</b><small>${Math.round((sel.v / total) * 100)}%</small>`;
+    center = `<small>${F.esc(emoji)} ${F.esc(name)}</small><b>${moneyFit(sel.v)}</b><small>${Math.round((sel.v / total) * 100)}%</small>`;
   } else {
-    center = `<small>Всего</small><b>${money(total)}</b><small>${rows.length} ${F.plural(rows.length, ['категория', 'категории', 'категорий'])}</small>`;
+    center = `<small>Всего</small><b>${moneyFit(total)}</b><small>${rows.length} ${F.plural(rows.length, ['категория', 'категории', 'категорий'])}</small>`;
   }
 
   const rowsHtml = rows
@@ -387,10 +408,10 @@ function statsView() {
         <button class="period-title" data-act="period-now">${p.title}</button>
         <button class="icon-btn" data-act="period" data-d="1" aria-label="Вперёд" ${canNext ? '' : 'disabled'}>${icon('right', 22)}</button>
       </div>
-      <div class="hero-amount center">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
+      <div class="hero-amount center${F.num(total).length > 9 ? ' long' : ''}">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
       ${comparison(p, total, isCurrent, elapsed)}
       <div class="pills">
-        <div class="pill"><small>Средний день</small><b>${money(Math.round(total / avgDays / 100) * 100)}</b></div>
+        <div class="pill"><small>Средний день</small><b>${moneyFit(Math.round(total / avgDays / 100) * 100)}</b></div>
         <div class="pill"><small>${F.plural(list.length, ['Трата', 'Траты', 'Трат'])}</small><b>${list.length}</b></div>
       </div>
     </div>
@@ -624,9 +645,19 @@ function openExpense(existing) {
   };
   const people = store.people();
   if (st.who && !people.includes(st.who)) people.push(st.who);
-  const visibleCats = store.cats.filter((c) => !c.del || c.id === st.cat);
+  const catsKey = () => JSON.stringify(store.cats.map((c) => [c.id, c.name, c.emoji, c.color, c.del]));
+  const catsHtml = () =>
+    store.cats
+      .filter((c) => !c.del || c.id === st.cat)
+      .map(
+        (c) => `<button class="cat" data-act="cat" data-id="${c.id}" style="--c:${colorVar(c.color)}">
+          <span class="e">${F.esc(c.emoji)}</span><span class="l">${F.esc(c.name)}</span></button>`,
+      )
+      .join('') +
+    `<button class="cat edit" data-act="edit-cats"><span class="e">${icon('note', 22)}</span><span class="l">Изменить</span></button>`;
 
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'back'];
+  const sep = NO_CENTS.has(cur()) ? '000' : ',';
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', sep, '0', 'back'];
   const html = `
     ${head(
       '<button class="link" data-act="close">Отмена</button>',
@@ -640,24 +671,33 @@ function openExpense(existing) {
       ${people.length > 1 ? `<button class="chip" data-act="who">${icon('user', 16)}<span class="who-label"></span></button>` : ''}
       <label class="chip note-chip">${icon('note', 16)}<input class="note-input" placeholder="Комментарий" maxlength="80" enterkeyhint="done" value="${F.esc(st.note)}"></label>
     </div>
-    <div class="cats">${visibleCats
-      .map(
-        (c) => `<button class="cat" data-act="cat" data-id="${c.id}" style="--c:${colorVar(c.color)}">
-          <span class="e">${F.esc(c.emoji)}</span><span class="l">${F.esc(c.name)}</span></button>`,
-      )
-      .join('')}</div>
+    <div class="cats">${catsHtml()}</div>
     <div class="keypad">${keys
       .map((k) =>
         k === 'back'
           ? `<button class="key fn" data-act="key" data-k="back" aria-label="Стереть">${icon('backspace', 26)}</button>`
-          : `<button class="key${k === ',' ? ' fn' : ''}" data-act="key" data-k="${k}">${k}</button>`,
+          : `<button class="key${k === ',' ? ' fn' : k === '000' ? ' zeros' : ''}" data-act="key" data-k="${k}">${k}</button>`,
       )
       .join('')}</div>
     <div class="sheet-foot"><button class="save" data-act="save"></button></div>`;
 
+  let shownCats = catsKey();
+  let shownIds = new Set(store.cats.map((c) => c.id));
   openSheet({
     html,
     cls: 'expense-sheet',
+    // категории поменяли (здесь или на другом телефоне) — перерисуем сетку,
+    // а только что созданную категорию сразу выберем
+    refresh(api) {
+      const key = catsKey();
+      if (key === shownCats) return;
+      const added = store.cats.filter((c) => !c.del && !shownIds.has(c.id));
+      if (added.length === 1) st.cat = added[0].id;
+      shownCats = key;
+      shownIds = new Set(store.cats.map((c) => c.id));
+      $('.cats', api.el).innerHTML = catsHtml();
+      api.update();
+    },
     onMount(api) {
       const el = api.el;
       const numEl = $('.amount .num', el);
@@ -685,7 +725,10 @@ function openExpense(existing) {
       const press = (k) => {
         let s = st.amount;
         if (k === 'back') s = s.slice(0, -1);
-        else if (k === ',') {
+        else if (k === '000') {
+          if (!s || s === '0' || s.includes(',') || s.length + 3 > 9) return;
+          s += '000';
+        } else if (k === ',') {
           if (!s.includes(',')) s = (s || '0') + ',';
         } else {
           const [i, d] = s.split(',');
@@ -711,6 +754,9 @@ function openExpense(existing) {
           case 'cat':
             st.cat = t.dataset.id;
             update();
+            break;
+          case 'edit-cats':
+            openCategories();
             break;
           case 'who': {
             const i = people.indexOf(st.who);
@@ -769,6 +815,7 @@ function openExpense(existing) {
       };
       document.addEventListener('keydown', onKey);
       api.onClose = () => document.removeEventListener('keydown', onKey);
+      api.update = update;
       update();
     },
   });
@@ -836,7 +883,7 @@ function catsGroup() {
   const hidden = store.cats.filter((c) => c.del);
   const row = (c) => `<button class="row" data-act="cat-edit" data-id="${c.id}">
       <span class="ico sm" style="--c:${colorVar(c.color)}">${F.esc(c.emoji)}</span>
-      <span class="row-main"><b>${F.esc(c.name)}</b></span>${c.del ? '<small class="muted">скрыта</small>' : ''}${icon('right', 18, 'chev')}</button>`;
+      <span class="row-main"><b>${F.esc(c.name)}</b></span>${c.del ? '<small class="muted">удалена</small>' : ''}${icon('right', 18, 'chev')}</button>`;
   return visible.map(row).join('') + hidden.map(row).join('') + `<button class="row accent" data-act="cat-new">${icon('plus', 18, 'lead')}Новая категория</button>`;
 }
 
@@ -857,7 +904,9 @@ function settingsHtml() {
     <div class="group-title">Общие настройки</div>
     <div class="group">
       <label class="row field"><span class="row-label">Валюта</span>
-        <select class="row-input" data-field="currency">${CURRENCIES.map((c) => `<option ${c === cur() ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+        <select class="row-input" data-field="currency">${CURRENCIES.map(
+          ([c, name]) => `<option value="${c}" ${c === cur() ? 'selected' : ''}>${c} — ${name}</option>`,
+        ).join('')}</select></label>
       <label class="row field"><span class="row-label">Бюджет на месяц</span>
         <input class="row-input" data-field="budget" inputmode="numeric" value="${budget}" placeholder="не задан" enterkeyhint="done"></label>
     </div>
@@ -1002,6 +1051,28 @@ function openSyncSetup() {
   });
 }
 
+function openCategories() {
+  openSheet({
+    html: `${head('', 'Категории', '<button class="link" data-act="close">Готово</button>')}
+      <div class="sheet-scroll">
+        <p class="group-note top">Нажмите на категорию, чтобы переименовать её или сменить значок. Категории общие для обоих телефонов.</p>
+        <div class="group" id="g-cats">${catsGroup()}</div>
+      </div>`,
+    cls: 'tall',
+    refresh(api) {
+      $('#g-cats', api.el).innerHTML = catsGroup();
+    },
+    onMount(api) {
+      api.el.addEventListener('click', (ev) => {
+        const t = ev.target.closest('[data-act]');
+        if (!t) return;
+        if (t.dataset.act === 'cat-edit') openCategoryEdit(store.catMap[t.dataset.id]);
+        else if (t.dataset.act === 'cat-new') openCategoryEdit(null);
+      });
+    },
+  });
+}
+
 function openCategoryEdit(c) {
   const st = c ? { ...c } : { id: 'cat-' + uid(8), kind: 'cat', emoji: '🏷️', name: '', color: 'blue', order: Math.max(0, ...store.cats.map((x) => x.order)) + 1 };
   const html = `${head(
@@ -1013,20 +1084,26 @@ function openCategoryEdit(c) {
     <div class="cat-preview" style="--c:${colorVar(st.color)}">
       <input class="emoji-input" value="${F.esc(st.emoji)}" maxlength="16" aria-label="Эмодзи" enterkeyhint="done">
     </div>
-    <p class="hint center">Нажмите на значок, чтобы выбрать эмодзи</p>
     <input class="text-input name-input" value="${F.esc(st.name)}" placeholder="Название" maxlength="24" enterkeyhint="done">
+    <div class="field-label">Цвет</div>
     <div class="swatches">${COLORS.map(
       (k) => `<button class="sw ${k === st.color ? 'sel' : ''}" data-act="color" data-c="${k}" style="--c:var(--c-${k})" aria-label="${k}"></button>`,
     ).join('')}</div>
+    <div class="field-label">Значок</div>
+    <div class="emoji-grid">${EMOJIS.map(
+      (e) => `<button class="em ${e === st.emoji ? 'sel' : ''}" data-act="emoji" data-e="${e}">${e}</button>`,
+    ).join('')}</div>
+    <p class="hint">Нужен другой — нажмите на большой значок вверху и выберите любой эмодзи на клавиатуре.</p>
     ${
       c
-        ? `<button class="btn ghost wide ${c.del ? '' : 'danger'}" data-act="toggle">${c.del ? 'Показать категорию снова' : 'Скрыть категорию'}</button>
-           <p class="hint">Скрытая категория пропадает из выбора, но старые траты в ней сохраняются.</p>`
+        ? `<button class="btn ghost wide ${c.del ? '' : 'danger'}" data-act="toggle">${c.del ? 'Вернуть категорию' : 'Удалить категорию'}</button>
+           <p class="hint">${c.del ? 'Категория снова появится в списке при вводе трат.' : 'Категория пропадёт из списка, а уже записанные траты в ней сохранятся.'}</p>`
         : ''
     }
   </div>`;
   openSheet({
     html,
+    cls: 'tall',
     onMount(api) {
       const el = api.el;
       const preview = $('.cat-preview', el);
@@ -1037,6 +1114,9 @@ function openCategoryEdit(c) {
           st.color = t.dataset.c;
           preview.style.setProperty('--c', colorVar(st.color));
           for (const b of el.querySelectorAll('.sw')) b.classList.toggle('sel', b === t);
+        } else if (t.dataset.act === 'emoji') {
+          $('.emoji-input', el).value = t.dataset.e;
+          for (const b of el.querySelectorAll('.em')) b.classList.toggle('sel', b === t);
         } else if (t.dataset.act === 'save') {
           const name = $('.name-input', el).value.trim();
           const emoji = F.firstGrapheme($('.emoji-input', el).value) || '🏷️';
@@ -1046,9 +1126,11 @@ function openCategoryEdit(c) {
           }
           store.put({ ...st, name, emoji });
           api.close();
+          toast(c ? 'Категория сохранена' : `Категория «${name}» добавлена`);
         } else if (t.dataset.act === 'toggle') {
           store.put({ ...store.catMap[c.id], del: c.del ? 0 : 1 });
           api.close();
+          toast(c.del ? 'Категория возвращена' : 'Категория удалена');
         }
       });
       el.addEventListener('keydown', (ev) => {
@@ -1093,8 +1175,9 @@ function openWelcome() {
     <p class="hint">Имя нужно, чтобы было видно, кто что потратил.</p>
     <div class="field-label">Валюта</div>
     <div class="cur-chips">${CURRENCIES.slice(0, 8)
-      .map((c) => `<button class="chip ${c === currency ? 'on' : ''}" data-act="cur" data-c="${c}">${c}</button>`)
+      .map(([c]) => `<button class="chip ${c === currency ? 'on' : ''}" data-act="cur" data-c="${c}">${c}</button>`)
       .join('')}</div>
+    <p class="hint">Другие валюты — в настройках.</p>
     <button class="save" data-act="start">Начать</button>
   </div>`;
   openSheet({
