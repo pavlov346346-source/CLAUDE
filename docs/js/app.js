@@ -3,24 +3,25 @@ import { Sync, TOKEN_URL } from './sync.js';
 import * as F from './format.js';
 import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
+import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.1';
+const VERSION = '1.2';
 const CURRENCIES = [
-  ['₽', 'российский рубль'],
-  ['Rp', 'индонезийская рупия'],
-  ['$', 'доллар'],
-  ['€', 'евро'],
-  ['₸', 'тенге'],
-  ['₴', 'гривна'],
-  ['₾', 'лари'],
-  ['฿', 'тайский бат'],
-  ['Br', 'белорусский рубль'],
-  ['֏', 'драм'],
-  ['сум', 'узбекский сум'],
-  ['₺', 'турецкая лира'],
-  ['₫', 'вьетнамский донг'],
-  ['£', 'фунт'],
-  ['zł', 'злотый'],
+  ['₽', 'российский рубль', 'RUB'],
+  ['Rp', 'индонезийская рупия', 'IDR'],
+  ['$', 'доллар', 'USD'],
+  ['€', 'евро', 'EUR'],
+  ['₸', 'тенге', 'KZT'],
+  ['₴', 'гривна', 'UAH'],
+  ['₾', 'лари', 'GEL'],
+  ['฿', 'тайский бат', 'THB'],
+  ['Br', 'белорусский рубль', 'BYN'],
+  ['֏', 'драм', 'AMD'],
+  ['сум', 'узбекский сум', 'UZS'],
+  ['₺', 'турецкая лира', 'TRY'],
+  ['₫', 'вьетнамский донг', 'VND'],
+  ['£', 'фунт', 'GBP'],
+  ['zł', 'злотый', 'PLN'],
 ];
 // у этих валют копейки не используют — на клавиатуре вместо запятой кнопка «000»
 const NO_CENTS = new Set(['Rp', 'сум', '₫']);
@@ -42,6 +43,7 @@ const ui = {
   bar: -1,
   seg: '',
   many: false, // траты записывают несколько человек
+  inRub: ls.get('fxOn', false) === true, // статистика в рублях
 };
 
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -58,6 +60,47 @@ const dismissed = (key) => ls.get('dismiss.' + key, false);
 // средние считаем с первой записанной траты, а не с начала периода
 const firstDate = () => (store.expenses.length ? store.expenses[store.expenses.length - 1].date : F.today());
 const later = (a, b) => (a > b ? a : b);
+
+/* ───────────────── Пересчёт статистики в рубли ───────────────── */
+
+const FX_TO = 'RUB';
+const fx = { k: 1, cur: '₽' }; // множитель и валюта для сумм на экране статистики
+let fxState = { loading: false, failed: false, asked: 0 };
+const curCode = () => (CURRENCIES.find(([s]) => s === cur()) || [])[2];
+const fxCents = (c) => (fx.k === 1 ? c : Math.round((c * fx.k) / 100) * 100);
+const sm = (c) => F.money(fxCents(c), fx.cur);
+const smFit = (c) => (fxCents(c) >= 1e8 ? F.compact(fxCents(c)) : sm(c));
+const fmtRate = (v) => v.toLocaleString('ru-RU', { maximumFractionDigits: v >= 100 ? 1 : v >= 1 ? 2 : 4 });
+
+// курс текущей валюты к рублю (из кэша; при необходимости подгружаем свежий)
+function fxRate() {
+  const code = curCode();
+  if (!code || code === FX_TO) return null;
+  const r = cachedRate(code, FX_TO);
+  if (isStale(r) && !fxState.loading && Date.now() - fxState.asked > 60e3) {
+    const asked = Date.now();
+    fxState = { loading: true, failed: false, asked };
+    fetchRate(code, FX_TO).then((res) => {
+      fxState = { loading: false, failed: !res, asked };
+      if (ui.tab === 'stats') render();
+    });
+  }
+  return { code, r };
+}
+
+function fxChip(total, conv) {
+  if (!conv) return '';
+  const { r } = conv;
+  if (!r) {
+    return fxState.failed
+      ? `<button class="fx-chip" data-act="fx-retry"><span>Курс рубля не загрузился — нажмите, чтобы повторить</span></button>`
+      : `<div class="fx-chip"><span>Загружаем курс рубля…</span></div>`;
+  }
+  const other = ui.inRub ? money(total) : F.money(Math.round((total * r.rate) / 100) * 100, '₽');
+  const rateText = r.rate < 1 ? `1 ₽ = ${fmtRate(1 / r.rate)} ${cur()}` : `1 ${cur()} = ${fmtRate(r.rate)} ₽`;
+  return `<button class="fx-chip" data-act="fx"><b>≈ ${other}</b><span>${ui.inRub ? `показать в ${F.esc(cur())}` : 'показать всё в рублях'}</span></button>
+    <div class="fx-note">курс ${F.esc(rateText)} на ${F.shortDate(r.date)}</div>`;
+}
 
 /* ───────────────────────── Главный экран ───────────────────────── */
 
@@ -79,14 +122,14 @@ function topActions() {
   return `${syncButton()}<button class="icon-btn" data-act="settings" aria-label="Настройки">${icon('sliders', 22)}</button>`;
 }
 
-function itemRow(e, { showDate = false } = {}) {
+function itemRow(e, { showDate = false, fmt = money } = {}) {
   const c = catOf(e.cat);
   const sub = [e.note, showDate ? F.shortDate(e.date) : '', ui.many ? e.who : ''].filter(Boolean).join(' · ');
   const unsynced = sync.connected && store.pending[e.id] ? '<i class="unsynced" aria-label="не синхронизировано"></i>' : '';
   return `<button class="item" data-act="edit" data-id="${e.id}">
     <span class="ico" style="--c:${colorVar(c.color)}">${F.esc(c.emoji)}</span>
     <span class="meta"><b>${F.esc(c.name)}</b>${sub ? `<small>${F.esc(sub)}</small>` : ''}</span>
-    <span class="amt">${money(e.amount)}${unsynced}</span>
+    <span class="amt">${fmt(e.amount)}${unsynced}</span>
   </button>`;
 }
 
@@ -278,18 +321,18 @@ function barsCard(p, list, total, avgDays) {
       : `${F.parseYmd(k).getDate()} ${F.MONTHS_GEN[F.parseYmd(k).getMonth()]}, ${F.WEEKDAYS[F.parseYmd(k).getDay()]}`;
   let caption;
   if (sel >= 0) {
-    caption = `<span>${keyTitle(items[sel].key)}</span><b>${money(items[sel].v)}</b>`;
+    caption = `<span>${keyTitle(items[sel].key)}</span><b>${sm(items[sel].v)}</b>`;
   } else {
     const max = items.reduce((m, it, i) => (it.v > items[m].v ? i : m), 0);
     caption = items[max].v
-      ? `<span>Больше всего — ${keyTitle(items[max].key)}</span><b>${money(items[max].v)}</b>`
+      ? `<span>Больше всего — ${keyTitle(items[max].key)}</span><b>${sm(items[max].v)}</b>`
       : '<span>Нет трат</span>';
   }
   return `<div class="card">
     <div class="card-head"><h3>${ui.mode === 'year' ? 'По месяцам' : 'По дням'}</h3>
-      ${avg > 0 ? `<span class="legend-avg"><i></i>в среднем ${money(Math.round(avg / 100) * 100)} ${unit}</span>` : ''}</div>
+      ${avg > 0 ? `<span class="legend-avg"><i></i>в среднем ${sm(Math.round(avg / 100) * 100)} ${unit}</span>` : ''}</div>
     <div class="chart-caption">${caption}</div>
-    <div class="chart-wrap">${bars(items, { width: chartWidth(), avg, selected: sel, tick: F.compact })}</div>
+    <div class="chart-wrap">${bars(items, { width: chartWidth(), avg, selected: sel, tick: (v) => F.compact(v * fx.k) })}</div>
   </div>`;
 }
 
@@ -311,9 +354,9 @@ function categoriesCard(list, total) {
   if (sel) {
     const name = sel.id === '_rest' ? 'Остальное' : catOf(sel.id).name;
     const emoji = sel.id === '_rest' ? '•••' : catOf(sel.id).emoji;
-    center = `<small>${F.esc(emoji)} ${F.esc(name)}</small><b>${moneyFit(sel.v)}</b><small>${Math.round((sel.v / total) * 100)}%</small>`;
+    center = `<small>${F.esc(emoji)} ${F.esc(name)}</small><b>${smFit(sel.v)}</b><small>${Math.round((sel.v / total) * 100)}%</small>`;
   } else {
-    center = `<small>Всего</small><b>${moneyFit(total)}</b><small>${rows.length} ${F.plural(rows.length, ['категория', 'категории', 'категорий'])}</small>`;
+    center = `<small>Всего</small><b>${smFit(total)}</b><small>${rows.length} ${F.plural(rows.length, ['категория', 'категории', 'категорий'])}</small>`;
   }
 
   const rowsHtml = rows
@@ -323,7 +366,7 @@ function categoriesCard(list, total) {
       return `<button class="cat-row" data-act="cat-detail" data-id="${r.id}">
         <span class="ico" style="--c:${colorVar(c.color)}">${F.esc(c.emoji)}</span>
         <span class="cat-row-main">
-          <span class="cat-row-top"><b>${F.esc(c.name)}</b><span class="amt">${money(r.v)}</span></span>
+          <span class="cat-row-top"><b>${F.esc(c.name)}</b><span class="amt">${sm(r.v)}</span></span>
           <span class="meter"><i style="width:${Math.max(pct, 1)}%;background:${colorVar(c.color)}"></i></span>
           <span class="cat-row-sub"><span>${r.n} ${F.plural(r.n, ['трата', 'траты', 'трат'])}</span><span>${pct < 1 ? '<1' : Math.round(pct)}%</span></span>
         </span>
@@ -357,7 +400,7 @@ function peopleCard(list, total) {
     <div class="people">${segs
       .map(
         (s) => `<div class="person"><i style="background:${s.color}"></i><span>${F.esc(s.name)}</span>
-          <b>${money(s.v)}</b><small>${Math.round((s.v / total) * 100)}%</small></div>`,
+          <b>${sm(s.v)}</b><small>${Math.round((s.v / total) * 100)}%</small></div>`,
       )
       .join('')}</div>
   </div>`;
@@ -373,6 +416,11 @@ function statsView() {
   const avgFrom = later(p.start, firstDate());
   const avgDays = Math.max(1, F.diffDays(avgFrom, isCurrent ? t : p.end) + 1);
   const canNext = p.end < t;
+  const conv = fxRate();
+  const inRub = !!(ui.inRub && conv && conv.r);
+  fx.k = inRub ? conv.r.rate : 1;
+  fx.cur = inRub ? '₽' : cur();
+  const shown = F.num(fxCents(total));
   const modes = [
     ['week', 'Неделя'],
     ['month', 'Месяц'],
@@ -390,7 +438,7 @@ function statsView() {
       ${peopleCard(list, total)}
       <div class="card flush">
         <div class="card-head pad"><h3>Самые крупные</h3></div>
-        <div class="list plain">${biggest.map((e) => itemRow(e, { showDate: true })).join('')}</div>
+        <div class="list plain">${biggest.map((e) => itemRow(e, { showDate: true, fmt: sm })).join('')}</div>
       </div>`;
   }
 
@@ -408,10 +456,11 @@ function statsView() {
         <button class="period-title" data-act="period-now">${p.title}</button>
         <button class="icon-btn" data-act="period" data-d="1" aria-label="Вперёд" ${canNext ? '' : 'disabled'}>${icon('right', 22)}</button>
       </div>
-      <div class="hero-amount center${F.num(total).length > 9 ? ' long' : ''}">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
+      <div class="hero-amount center${shown.length > 9 ? ' long' : ''}">${shown}<span class="cur">${F.esc(fx.cur)}</span></div>
+      ${list.length ? fxChip(total, conv) : ''}
       ${comparison(p, total, isCurrent, elapsed)}
       <div class="pills">
-        <div class="pill"><small>Средний день</small><b>${moneyFit(Math.round(total / avgDays / 100) * 100)}</b></div>
+        <div class="pill"><small>Средний день</small><b>${smFit(Math.round(total / avgDays / 100) * 100)}</b></div>
         <div class="pill"><small>${F.plural(list.length, ['Трата', 'Траты', 'Трат'])}</small><b>${list.length}</b></div>
       </div>
     </div>
@@ -514,6 +563,15 @@ view.addEventListener('click', (ev) => {
       break;
     case 'cat-detail':
       openCategoryDetail(t.dataset.id);
+      break;
+    case 'fx':
+      ui.inRub = !ui.inRub;
+      ls.set('fxOn', ui.inRub);
+      render();
+      break;
+    case 'fx-retry':
+      fxState = { loading: false, failed: false, asked: 0 };
+      render();
       break;
   }
 });
@@ -830,8 +888,8 @@ function openCategoryDetail(catId) {
     const c = catOf(catId);
     return `${head('', `${F.esc(c.emoji)} ${F.esc(c.name)}`, '<button class="link" data-act="close">Готово</button>')}
       <div class="sheet-scroll">
-        <div class="detail-sum"><b>${money(sum(list))}</b><small>${p.title} · ${list.length} ${F.plural(list.length, ['трата', 'траты', 'трат'])}</small></div>
-        <div class="list">${list.map((e) => itemRow(e, { showDate: true })).join('') || '<p class="muted pad">Нет трат</p>'}</div>
+        <div class="detail-sum"><b>${sm(sum(list))}</b><small>${p.title} · ${list.length} ${F.plural(list.length, ['трата', 'траты', 'трат'])}</small></div>
+        <div class="list">${list.map((e) => itemRow(e, { showDate: true, fmt: sm })).join('') || '<p class="muted pad">Нет трат</p>'}</div>
       </div>`;
   };
   openSheet({

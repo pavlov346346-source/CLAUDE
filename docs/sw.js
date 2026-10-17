@@ -1,6 +1,6 @@
 // Офлайн-кэш приложения. При выпуске новой версии меняйте VERSION —
 // телефоны скачают обновление при следующем запуске.
-const VERSION = 'traty-v2';
+const VERSION = 'traty-v3';
 const ASSETS = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   'js/format.js',
   'js/charts.js',
   'js/icons.js',
+  'js/rates.js',
   'icons/icon.svg',
   'icons/icon-192.png',
   'icons/apple-touch-icon.png',
