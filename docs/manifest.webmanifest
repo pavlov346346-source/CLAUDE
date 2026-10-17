@@ -1,0 +1,17 @@
+{
+  "name": "Траты — учёт расходов",
+  "short_name": "Траты",
+  "description": "Простой учёт расходов на двоих",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#4a4ed4",
+  "theme_color": "#4a4ed4",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
