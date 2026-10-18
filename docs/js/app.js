@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.3';
+const VERSION = '1.4';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -705,6 +705,8 @@ function openExpense(existing) {
   const people = store.people();
   if (st.who && !people.includes(st.who)) people.push(st.who);
   const catsKey = () => JSON.stringify(store.cats.map((c) => [c.id, c.name, c.emoji, c.color, c.del]));
+  // режим правки: нажатие на категорию открывает её переименование
+  let editing = false;
   const catsHtml = () =>
     store.cats
       .filter((c) => !c.del || c.id === st.cat)
@@ -713,7 +715,10 @@ function openExpense(existing) {
           <span class="e">${F.esc(c.emoji)}</span><span class="l">${F.esc(c.name)}</span></button>`,
       )
       .join('') +
-    `<button class="cat edit" data-act="edit-cats"><span class="e">${icon('note', 22)}</span><span class="l">Изменить</span></button>`;
+    (editing
+      ? `<button class="cat edit" data-act="cat-add"><span class="e">${icon('plus', 22)}</span><span class="l">Новая</span></button>
+         <button class="cat edit done" data-act="edit-cats"><span class="e">${icon('check', 22)}</span><span class="l">Готово</span></button>`
+      : `<button class="cat edit" data-act="edit-cats"><span class="e">${icon('note', 22)}</span><span class="l">Изменить</span></button>`);
 
   const sep = NO_CENTS.has(cur()) ? '000' : ',';
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', sep, '0', 'back'];
@@ -730,6 +735,7 @@ function openExpense(existing) {
       ${people.length > 1 ? `<button class="chip" data-act="who">${icon('user', 16)}<span class="who-label"></span></button>` : ''}
       <label class="chip note-chip">${icon('note', 16)}<input class="note-input" placeholder="Комментарий" maxlength="80" enterkeyhint="done" value="${F.esc(st.note)}"></label>
     </div>
+    <p class="cats-hint" hidden>Нажмите на категорию, чтобы переименовать её или сменить значок</p>
     <div class="cats">${catsHtml()}</div>
     <div class="keypad">${keys
       .map((k) =>
@@ -767,6 +773,54 @@ function openExpense(existing) {
       const dateLabel = $('.date-label', el);
       const whoLabel = $('.who-label', el);
       const noteInput = $('.note-input', el);
+      const catsEl = $('.cats', el);
+
+      const setEditing = (on) => {
+        editing = on;
+        catsEl.classList.toggle('editing', on);
+        $('.cats-hint', el).hidden = !on;
+        catsEl.innerHTML = catsHtml();
+        update();
+      };
+
+      // долгое нажатие на категорию — сразу её переименование
+      let pressTimer = 0;
+      let pressAt = null;
+      let longPressed = false;
+      const editCat = (id) => {
+        longPressed = true;
+        if (store.catMap[id]) openCategoryEdit(store.catMap[id]);
+      };
+      catsEl.addEventListener(
+        'touchstart',
+        (ev) => {
+          const b = ev.target.closest('.cat[data-id]');
+          longPressed = false;
+          clearTimeout(pressTimer);
+          if (!b) return;
+          pressAt = [ev.touches[0].clientX, ev.touches[0].clientY];
+          pressTimer = setTimeout(() => editCat(b.dataset.id), 500);
+        },
+        { passive: true },
+      );
+      catsEl.addEventListener(
+        'touchmove',
+        (ev) => {
+          const t = ev.touches[0];
+          if (pressAt && Math.hypot(t.clientX - pressAt[0], t.clientY - pressAt[1]) > 10) clearTimeout(pressTimer);
+        },
+        { passive: true },
+      );
+      catsEl.addEventListener('touchend', () => clearTimeout(pressTimer));
+      catsEl.addEventListener('touchcancel', () => clearTimeout(pressTimer));
+      catsEl.addEventListener('contextmenu', (ev) => {
+        const b = ev.target.closest('.cat[data-id]');
+        if (!b) return;
+        ev.preventDefault();
+        clearTimeout(pressTimer);
+        // правая кнопка мыши или долгое нажатие на Android; после него клика не бывает
+        if (!longPressed && store.catMap[b.dataset.id]) openCategoryEdit(store.catMap[b.dataset.id]);
+      });
 
       const update = () => {
         const cents = strToCents(st.amount);
@@ -813,11 +867,23 @@ function openExpense(existing) {
             press(t.dataset.k);
             break;
           case 'cat':
+            if (longPressed) {
+              // это отпускание пальца после долгого нажатия, а не выбор
+              longPressed = false;
+              break;
+            }
+            if (editing) {
+              openCategoryEdit(store.catMap[t.dataset.id]);
+              break;
+            }
             st.cat = t.dataset.id;
             update();
             break;
           case 'edit-cats':
-            openCategories();
+            setEditing(!editing);
+            break;
+          case 'cat-add':
+            openCategoryEdit(null);
             break;
           case 'who': {
             const i = people.indexOf(st.who);

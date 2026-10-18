@@ -1104,6 +1104,49 @@ div.fx-chip span {
   background: var(--fill);
   color: var(--text-2);
 }
+.cat.edit.done .e {
+  background: var(--accent);
+  color: #fff;
+}
+.cat {
+  -webkit-touch-callout: none;
+}
+.cats-hint {
+  margin: 0;
+  padding: 0 16px 2px;
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
+  flex: none;
+}
+.cats.editing .cat[data-id] .e {
+  position: relative;
+  animation: wiggle 0.3s ease-in-out infinite alternate;
+}
+.cats.editing .cat[data-id]:nth-child(2n) .e {
+  animation-delay: -0.15s;
+}
+.cats.editing .cat[data-id] .e::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--card);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E")
+    center / 11px no-repeat;
+}
+@keyframes wiggle {
+  from {
+    transform: rotate(-2.5deg);
+  }
+  to {
+    transform: rotate(2.5deg);
+  }
+}
 .key:active {
   background: var(--fill-2);
   transform: scale(0.96);
