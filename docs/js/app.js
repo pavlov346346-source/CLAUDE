@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.2';
+const VERSION = '1.3';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -55,7 +55,7 @@ const money = (c) => F.money(c, cur());
 const moneyFit = (c) => (c >= 1e8 ? F.compact(c) : money(c));
 const sum = (list) => list.reduce((a, e) => a + e.amount, 0);
 const colorVar = (name) => `var(--c-${COLORS.includes(name) ? name : 'gray'})`;
-const catOf = (id) => store.catMap[id] || { id, emoji: '❔', name: 'Без категории', color: 'gray' };
+const catOf = (id) => store.catMap[store.canon(id)] || { id, emoji: '❔', name: 'Без категории', color: 'gray' };
 const dismissed = (key) => ls.get('dismiss.' + key, false);
 // средние считаем с первой записанной траты, а не с начала периода
 const firstDate = () => (store.expenses.length ? store.expenses[store.expenses.length - 1].date : F.today());
@@ -339,9 +339,10 @@ function barsCard(p, list, total, avgDays) {
 function categoriesCard(list, total) {
   const by = {};
   for (const e of list) {
-    by[e.cat] = by[e.cat] || { id: e.cat, v: 0, n: 0 };
-    by[e.cat].v += e.amount;
-    by[e.cat].n += 1;
+    const id = store.canon(e.cat);
+    by[id] = by[id] || { id, v: 0, n: 0 };
+    by[id].v += e.amount;
+    by[id].n += 1;
   }
   const rows = Object.values(by).sort((a, b) => b.v - a.v);
   const top = rows.length > 6 ? rows.slice(0, 5) : rows;
@@ -696,7 +697,7 @@ function dateChipLabel(d) {
 function openExpense(existing) {
   const st = {
     amount: existing ? centsToStr(existing.amount) : '',
-    cat: existing ? existing.cat : '',
+    cat: existing ? store.canon(existing.cat) : '',
     date: existing ? existing.date : F.today(),
     note: existing ? existing.note || '' : '',
     who: existing ? existing.who : store.device.name,
@@ -740,7 +741,7 @@ function openExpense(existing) {
     <div class="sheet-foot"><button class="save" data-act="save"></button></div>`;
 
   let shownCats = catsKey();
-  let shownIds = new Set(store.cats.map((c) => c.id));
+  createdCat = '';
   openSheet({
     html,
     cls: 'expense-sheet',
@@ -749,10 +750,12 @@ function openExpense(existing) {
     refresh(api) {
       const key = catsKey();
       if (key === shownCats) return;
-      const added = store.cats.filter((c) => !c.del && !shownIds.has(c.id));
-      if (added.length === 1) st.cat = added[0].id;
+      st.cat = store.canon(st.cat);
+      if (createdCat && store.catMap[createdCat]) {
+        st.cat = store.canon(createdCat);
+        createdCat = '';
+      }
       shownCats = key;
-      shownIds = new Set(store.cats.map((c) => c.id));
       $('.cats', api.el).innerHTML = catsHtml();
       api.update();
     },
@@ -884,7 +887,7 @@ function openExpense(existing) {
 function openCategoryDetail(catId) {
   const p = period();
   const body = () => {
-    const list = inRange(p.start, p.end).filter((e) => e.cat === catId);
+    const list = inRange(p.start, p.end).filter((e) => store.canon(e.cat) === catId);
     const c = catOf(catId);
     return `${head('', `${F.esc(c.emoji)} ${F.esc(c.name)}`, '<button class="link" data-act="close">Готово</button>')}
       <div class="sheet-scroll">
@@ -923,7 +926,7 @@ function timeAgo(ts) {
 function syncGroup() {
   if (!sync.connected) {
     return `<div class="row static"><span class="row-ico off">${icon('cloudOff', 20)}</span>
-        <span class="row-main"><b>Не подключена</b><small>Траты хранятся только на этом телефоне</small></span></div>
+        <span class="row-main"><b>Не подключена</b><small>Записи хранятся только на этом телефоне</small></span></div>
       <button class="row accent" data-act="sync-setup">Подключить синхронизацию${icon('right', 18, 'chev')}</button>`;
   }
   const b = syncBadge();
@@ -931,9 +934,20 @@ function syncGroup() {
   return `<div class="row static"><span class="row-ico ${b.cls || 'ok'}">${icon(b.name, 20)}</span>
       <span class="row-main"><b>${sync.state === 'error' || sync.state === 'offline' ? F.esc(b.label) : 'Подключено'}</b>
       <small>GitHub @${F.esc(sync.cfg.login || '')} · ${sync.state === 'busy' ? 'синхронизация…' : timeAgo(sync.cfg.last)}${pending ? ` · ждут отправки: ${pending}` : ''}</small></span></div>
+    ${cloudInfo()}
     <button class="row" data-act="sync-now">${icon('sync', 18, 'lead')}Синхронизировать сейчас</button>
     <button class="row" data-act="copy-token">${icon('copy', 18, 'lead')}Скопировать токен для второго телефона</button>
     <button class="row danger" data-act="disconnect">Отключить на этом телефоне</button>`;
+}
+
+// сколько телефонов уже пишут в облако — видно, подключён ли второй
+function cloudInfo() {
+  const c = sync.cfg && sync.cfg.cloud;
+  if (!c) return '';
+  const phones = `${c.devices} ${F.plural(c.devices, ['телефон', 'телефона', 'телефонов'])}`;
+  const hint = c.devices < 2 ? 'Второй телефон ещё не подключён — введите на нём этот же токен' : 'Оба телефона пишут в одно хранилище';
+  return `<div class="row static"><span class="row-ico ${c.devices < 2 ? 'warn' : 'ok'}">${icon('user', 18)}</span>
+    <span class="row-main"><b>В облаке: ${phones}</b><small>${hint}</small></span></div>`;
 }
 
 function catsGroup() {
@@ -963,7 +977,8 @@ function settingsHtml() {
     <div class="group">
       <label class="row field"><span class="row-label">Валюта</span>
         <select class="row-input" data-field="currency">${CURRENCIES.map(
-          ([c, name]) => `<option value="${c}" ${c === cur() ? 'selected' : ''}>${c} — ${name}</option>`,
+          // \u200e — чтобы при выравнивании вправо символ валюты не уезжал в конец строки
+          ([c, name]) => `<option value="${c}" ${c === cur() ? 'selected' : ''}>\u200e${c} — ${name}</option>`,
         ).join('')}</select></label>
       <label class="row field"><span class="row-label">Бюджет на месяц</span>
         <input class="row-input" data-field="budget" inputmode="numeric" value="${budget}" placeholder="не задан" enterkeyhint="done"></label>
@@ -977,7 +992,7 @@ function settingsHtml() {
     <div class="group">
       <button class="row" data-act="export">${icon('share', 18, 'lead')}Выгрузить в Excel (CSV)</button>
     </div>
-    <p class="foot">Траты ${VERSION} · ${store.expenses.length} ${F.plural(store.expenses.length, ['запись', 'записи', 'записей'])}</p>
+    <p class="foot">Деньги любят ${VERSION} · ${store.expenses.length} ${F.plural(store.expenses.length, ['запись', 'записи', 'записей'])}</p>
   </div>`;
 }
 
@@ -1013,7 +1028,7 @@ function openSettings() {
             }
             break;
           case 'disconnect':
-            if (confirm('Отключить синхронизацию на этом телефоне? Траты останутся на телефоне и в облаке.')) {
+            if (confirm('Отключить синхронизацию на этом телефоне? Записи останутся на телефоне и в облаке.')) {
               sync.disconnect();
               toast('Синхронизация отключена');
             }
@@ -1053,7 +1068,7 @@ function openSettings() {
 function openSyncSetup() {
   const html = `${head('<button class="link" data-act="close">Отмена</button>', 'Синхронизация', '')}
   <div class="sheet-scroll pad">
-    <p class="lead">Траты будут храниться в вашем аккаунте GitHub, в приватном хранилище (gist). Чтобы оба телефона видели одни и те же записи, на обоих нужно ввести <b>один и тот же токен</b>.</p>
+    <p class="lead">Записи будут храниться в вашем аккаунте GitHub, в приватном хранилище (gist). Чтобы оба телефона видели одни и те же записи, на обоих нужно ввести <b>один и тот же токен</b>.</p>
     <div class="step"><span class="step-n">1</span><div class="step-body">
       <b>Создайте токен</b>
       <p>Это нужно сделать один раз, на первом телефоне. На GitHub в поле <i>Expiration</i> выберите <i>No expiration</i>, убедитесь, что стоит галочка <i>gist</i>, нажмите внизу <i>Generate token</i> и скопируйте токен.</p>
@@ -1108,6 +1123,9 @@ function openSyncSetup() {
     },
   });
 }
+
+// категория, только что созданная на этом телефоне, — её сразу выбираем в окне траты
+let createdCat = '';
 
 function openCategories() {
   openSheet({
@@ -1182,6 +1200,7 @@ function openCategoryEdit(c) {
             $('.name-input', el).focus();
             return;
           }
+          if (!c) createdCat = st.id; // до put: окно траты обновится прямо во время сохранения
           store.put({ ...st, name, emoji });
           api.close();
           toast(c ? 'Категория сохранена' : `Категория «${name}» добавлена`);
@@ -1210,7 +1229,7 @@ function exportCsv() {
   const name = `traty-${F.today()}.csv`;
   const file = new File([csv], name, { type: 'text/csv' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    navigator.share({ files: [file], title: 'Траты' }).catch(() => {});
+    navigator.share({ files: [file], title: 'Деньги любят' }).catch(() => {});
     return;
   }
   const a = document.createElement('a');
@@ -1226,8 +1245,8 @@ function openWelcome() {
   let currency = cur();
   const html = `<div class="sheet-scroll pad welcome">
     <img class="welcome-icon" src="icons/icon-192.png" alt="" width="84" height="84">
-    <h2>Траты</h2>
-    <p class="lead center">Простой учёт расходов — для одного или для двоих</p>
+    <h2>Деньги любят</h2>
+    <p class="lead center">…тех, кто знает, куда они уходят</p>
     <label class="field-label" for="w-name">Как вас зовут?</label>
     <input id="w-name" class="text-input" placeholder="Например, Саша" maxlength="20" autocomplete="given-name" enterkeyhint="done">
     <p class="hint">Имя нужно, чтобы было видно, кто что потратил.</p>

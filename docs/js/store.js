@@ -73,8 +73,12 @@ export const DEFAULT_CATS = [
   cat('beauty', '💅', 'Красота', 'magenta', 9),
   cat('connection', '📱', 'Связь', 'violet', 10),
   cat('travel', '✈️', 'Путешествия', 'blue', 11),
-  cat('other', '📦', 'Другое', 'gray', 12),
+  cat('subs', '📺', 'Подписки', 'red', 12),
+  cat('matvey', '👦', 'Матвей', 'aqua', 13),
+  cat('other', '📦', 'Другое', 'gray', 99),
 ];
+const DEFAULT_IDS = new Set(DEFAULT_CATS.map((c) => c.id));
+const normName = (s) => String(s || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
 
 export const CFG_ID = 'cfg';
 const DEFAULT_CFG = { id: CFG_ID, kind: 'cfg', currency: '₽', budget: 0, upd: 0, dev: '' };
@@ -118,10 +122,27 @@ export class Store {
     }
     expenses.sort((a, b) => (a.date === b.date ? b.created - a.created : a.date < b.date ? 1 : -1));
     cats.sort((a, b) => a.order - b.order);
+
+    // Категории с одинаковым названием (созданные вручную на двух телефонах или
+    // совпавшие со стандартной) считаем одной: главной — созданную вручную.
+    this.alias = {};
+    const byName = {};
+    for (const c of cats) if (!c.del) (byName[normName(c.name)] ||= []).push(c);
+    for (const group of Object.values(byName)) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => DEFAULT_IDS.has(a.id) - DEFAULT_IDS.has(b.id) || (a.id < b.id ? -1 : 1));
+      for (const c of group.slice(1)) this.alias[c.id] = group[0].id;
+    }
+
     this.expenses = expenses;
-    this.cats = cats;
+    this.cats = cats.filter((c) => !this.alias[c.id]);
     this.catMap = Object.fromEntries(cats.map((c) => [c.id, c]));
     this.cfg = all[CFG_ID];
+  }
+
+  // id категории с учётом объединения одноимённых
+  canon(id) {
+    return this.alias[id] || id;
   }
 
   get pendingCount() {

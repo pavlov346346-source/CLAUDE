@@ -11,7 +11,7 @@ const FILE_RE = /^d-[a-z0-9]+-\d{4}-\d{2}\.json$/;
 const POLL_MS = 20000;
 
 export const TOKEN_URL =
-  'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Траты (приложение)');
+  'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Деньги любят (приложение)');
 
 class SyncError extends Error {
   constructor(code, message) {
@@ -113,7 +113,7 @@ export class Sync {
       method: 'POST',
       token,
       body: {
-        description: 'Траты — данные приложения учёта расходов. Не удаляйте этот gist.',
+        description: 'Деньги любят — данные приложения. Не удаляйте этот gist.',
         public: false,
         files: {
           [MARKER]: {
@@ -222,8 +222,10 @@ export class Sync {
     const gist = await res.json();
     const ownName = this.ownFileName();
     const incoming = [];
+    const devices = new Set([this.store.device.id]);
     for (const f of Object.values(gist.files || {})) {
       if (!FILE_RE.test(f.filename)) continue;
+      devices.add(f.filename.split('-')[1]);
       let text = f.content;
       if (f.truncated || text == null) {
         const raw = await fetch(f.raw_url, { cache: 'no-store' });
@@ -243,6 +245,7 @@ export class Sync {
       }
     }
     this.store.applyRemote(incoming);
+    this.cfg.cloud = { devices: devices.size, recs: incoming.length };
     this.cfg.etag = res.headers.get('ETag') || '';
     this.save();
   }
