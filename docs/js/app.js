@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.4';
+const VERSION = '1.5';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -109,7 +109,7 @@ function syncBadge() {
   if (sync.state === 'busy') return { name: 'sync', cls: 'spin', label: 'Синхронизация…' };
   if (sync.state === 'error') return { name: 'cloudAlert', cls: 'err', label: sync.error };
   if (sync.state === 'offline') return { name: 'cloudOff', cls: 'warn', label: 'Нет связи' };
-  if (store.pendingCount) return { name: 'cloud', cls: 'warn', label: 'Есть несинхронизированные траты' };
+  if (store.pendingCount) return { name: 'cloud', cls: 'warn', label: 'Есть несинхронизированные записи' };
   return { name: 'cloudOk', cls: '', label: 'Всё синхронизировано' };
 }
 
@@ -164,7 +164,7 @@ function banners() {
   if (!sync.connected && !dismissed('sync')) {
     out += `<div class="banner" data-act="sync-setup" role="button">
       <span class="banner-ico">👫</span>
-      <span class="banner-text"><b>Ведёте траты вдвоём?</b>Подключите синхронизацию — и оба телефона будут видеть одни и те же записи</span>
+      <span class="banner-text"><b>Инвестируете вдвоём?</b>Подключите синхронизацию — и оба телефона будут видеть одни и те же записи</span>
       <button class="banner-x" data-act="dismiss" data-key="sync" aria-label="Скрыть">${icon('x', 16)}</button>
     </div>`;
   }
@@ -185,7 +185,7 @@ function homeView() {
   const pills = [
     isCur ? ['Сегодня', moneyFit(sum(list.filter((e) => e.date === t)))] : null,
     ['Средний день', moneyFit(Math.round(total / days / 100) * 100)],
-    [F.plural(list.length, ['Трата', 'Траты', 'Трат']), String(list.length)],
+    [F.plural(list.length, ['Инвестиция', 'Инвестиции', 'Инвестиций']), String(list.length)],
   ].filter(Boolean);
 
   let groups = '';
@@ -200,8 +200,8 @@ function homeView() {
   if (!list.length) {
     groups = `<div class="empty">
       <div class="empty-emoji">${isCur ? '🪙' : '🗓️'}</div>
-      <b>${isCur ? 'Здесь пока пусто' : 'В этом месяце трат нет'}</b>
-      ${isCur ? '<p>Нажмите <span class="plus-inline">+</span> внизу, чтобы записать первую трату</p>' : ''}
+      <b>${isCur ? 'Здесь пока пусто' : 'В этом месяце инвестиций нет'}</b>
+      ${isCur ? '<p>Нажмите <span class="plus-inline">+</span> внизу, чтобы записать первую инвестицию в богатую жизнь</p>' : ''}
     </div>`;
   }
 
@@ -215,7 +215,7 @@ function homeView() {
   </div></header>
   <section class="hero">
     <div class="hero-in">
-      <div class="hero-label">Потрачено в ${F.MONTHS_PREP[monthIdx]}</div>
+      <div class="hero-label">Инвестировано в богатую жизнь в ${F.MONTHS_PREP[monthIdx]}</div>
       <div class="hero-amount${F.num(total).length > 9 ? ' long' : ''}">${F.num(total)}<span class="cur">${F.esc(cur())}</span></div>
       ${budgetBlock(total, ym, isCur)}
       <div class="pills">${pills.map(([k, v]) => `<div class="pill"><small>${k}</small><b>${v}</b></div>`).join('')}</div>
@@ -326,7 +326,7 @@ function barsCard(p, list, total, avgDays) {
     const max = items.reduce((m, it, i) => (it.v > items[m].v ? i : m), 0);
     caption = items[max].v
       ? `<span>Больше всего — ${keyTitle(items[max].key)}</span><b>${sm(items[max].v)}</b>`
-      : '<span>Нет трат</span>';
+      : '<span>Пока пусто</span>';
   }
   return `<div class="card">
     <div class="card-head"><h3>${ui.mode === 'year' ? 'По месяцам' : 'По дням'}</h3>
@@ -369,7 +369,7 @@ function categoriesCard(list, total) {
         <span class="cat-row-main">
           <span class="cat-row-top"><b>${F.esc(c.name)}</b><span class="amt">${sm(r.v)}</span></span>
           <span class="meter"><i style="width:${Math.max(pct, 1)}%;background:${colorVar(c.color)}"></i></span>
-          <span class="cat-row-sub"><span>${r.n} ${F.plural(r.n, ['трата', 'траты', 'трат'])}</span><span>${pct < 1 ? '<1' : Math.round(pct)}%</span></span>
+          <span class="cat-row-sub"><span>${r.n} ${F.plural(r.n, ['инвестиция', 'инвестиции', 'инвестиций'])}</span><span>${pct < 1 ? '<1' : Math.round(pct)}%</span></span>
         </span>
       </button>`;
     })
@@ -430,7 +430,7 @@ function statsView() {
 
   let body;
   if (!list.length) {
-    body = `<div class="empty"><div class="empty-emoji">📊</div><b>За этот период трат нет</b><p>Статистика появится, как только вы что-нибудь запишете</p></div>`;
+    body = `<div class="empty"><div class="empty-emoji">📊</div><b>За этот период инвестиций нет</b><p>Статистика появится, как только вы что-нибудь запишете</p></div>`;
   } else {
     const biggest = [...list].sort((a, b) => b.amount - a.amount).slice(0, 5);
     body = `
@@ -462,7 +462,7 @@ function statsView() {
       ${comparison(p, total, isCurrent, elapsed)}
       <div class="pills">
         <div class="pill"><small>Средний день</small><b>${smFit(Math.round(total / avgDays / 100) * 100)}</b></div>
-        <div class="pill"><small>${F.plural(list.length, ['Трата', 'Траты', 'Трат'])}</small><b>${list.length}</b></div>
+        <div class="pill"><small>${F.plural(list.length, ['Инвестиция', 'Инвестиции', 'Инвестиций'])}</small><b>${list.length}</b></div>
       </div>
     </div>
   </section>
@@ -725,7 +725,7 @@ function openExpense(existing) {
   const html = `
     ${head(
       '<button class="link" data-act="close">Отмена</button>',
-      existing ? 'Трата' : 'Новая трата',
+      existing ? 'Инвестиция' : 'Новая инвестиция',
       existing ? '<button class="link danger" data-act="delete">Удалить</button>' : '',
     )}
     <div class="amount"><span class="num"></span><span class="cur">${F.esc(cur())}</span></div>
@@ -834,7 +834,7 @@ function openExpense(existing) {
         saveBtn.disabled = !cents || !st.cat;
         if (!cents) saveBtn.textContent = 'Введите сумму';
         else if (!st.cat) saveBtn.textContent = 'Выберите категорию';
-        else saveBtn.textContent = existing ? 'Сохранить' : `Добавить ${money(cents)}`;
+        else saveBtn.textContent = existing ? 'Сохранить' : `Инвестировать ${money(cents)}`;
       };
 
       const press = (k) => {
@@ -914,7 +914,7 @@ function openExpense(existing) {
             const prev = store.all[existing.id];
             store.remove(existing.id);
             api.close();
-            toast('Трата удалена', {
+            toast('Инвестиция удалена', {
               label: 'Вернуть',
               run: () => {
                 const { del: _del, ...rest } = prev;
@@ -957,8 +957,8 @@ function openCategoryDetail(catId) {
     const c = catOf(catId);
     return `${head('', `${F.esc(c.emoji)} ${F.esc(c.name)}`, '<button class="link" data-act="close">Готово</button>')}
       <div class="sheet-scroll">
-        <div class="detail-sum"><b>${sm(sum(list))}</b><small>${p.title} · ${list.length} ${F.plural(list.length, ['трата', 'траты', 'трат'])}</small></div>
-        <div class="list">${list.map((e) => itemRow(e, { showDate: true, fmt: sm })).join('') || '<p class="muted pad">Нет трат</p>'}</div>
+        <div class="detail-sum"><b>${sm(sum(list))}</b><small>${p.title} · ${list.length} ${F.plural(list.length, ['инвестиция', 'инвестиции', 'инвестиций'])}</small></div>
+        <div class="list">${list.map((e) => itemRow(e, { showDate: true, fmt: sm })).join('') || '<p class="muted pad">Пока пусто</p>'}</div>
       </div>`;
   };
   openSheet({
@@ -1037,7 +1037,7 @@ function settingsHtml() {
       <label class="row field"><span class="row-label">Ваше имя</span>
         <input class="row-input" data-field="name" value="${F.esc(store.device.name)}" placeholder="Например, Саша" maxlength="20" autocomplete="off" enterkeyhint="done"></label>
     </div>
-    <p class="group-note">Под этим именем будут записываться траты с этого телефона.</p>
+    <p class="group-note">Под этим именем будут записываться инвестиции с этого телефона.</p>
 
     <div class="group-title">Общие настройки</div>
     <div class="group">
@@ -1239,7 +1239,7 @@ function openCategoryEdit(c) {
     ${
       c
         ? `<button class="btn ghost wide ${c.del ? '' : 'danger'}" data-act="toggle">${c.del ? 'Вернуть категорию' : 'Удалить категорию'}</button>
-           <p class="hint">${c.del ? 'Категория снова появится в списке при вводе трат.' : 'Категория пропадёт из списка, а уже записанные траты в ней сохранятся.'}</p>`
+           <p class="hint">${c.del ? 'Категория снова появится в списке.' : 'Категория пропадёт из списка, а уже записанные инвестиции в ней сохранятся.'}</p>`
         : ''
     }
   </div>`;
@@ -1315,7 +1315,7 @@ function openWelcome() {
     <p class="lead center">…тех, кто знает, куда они уходят</p>
     <label class="field-label" for="w-name">Как вас зовут?</label>
     <input id="w-name" class="text-input" placeholder="Например, Саша" maxlength="20" autocomplete="given-name" enterkeyhint="done">
-    <p class="hint">Имя нужно, чтобы было видно, кто что потратил.</p>
+    <p class="hint">Имя нужно, чтобы было видно, кто во что инвестировал.</p>
     <div class="field-label">Валюта</div>
     <div class="cur-chips">${CURRENCIES.slice(0, 8)
       .map(([c]) => `<button class="chip ${c === currency ? 'on' : ''}" data-act="cur" data-c="${c}">${c}</button>`)
@@ -1392,6 +1392,19 @@ document.addEventListener('visibilitychange', () => {
     render();
   }
 });
+
+// iOS: у приложения на экране «Домой» окно бывает ниже экрана на высоту строки
+// состояния, и снизу остаётся серая полоса — растягиваем интерфейс до края сами
+function fitHeight() {
+  let h = window.innerHeight;
+  if (isIOS && standalone && matchMedia('(orientation: portrait)').matches && screen.height > h) h = screen.height;
+  document.documentElement.style.setProperty('--app-h', h + 'px');
+  if (window.scrollY) window.scrollTo(0, 0);
+}
+fitHeight();
+window.addEventListener('resize', fitHeight);
+// после закрытия клавиатуры iOS может оставить страницу сдвинутой вверх
+document.addEventListener('focusout', () => setTimeout(() => window.scrollY && window.scrollTo(0, 0), 100));
 
 render();
 if (!store.device.name) openWelcome();

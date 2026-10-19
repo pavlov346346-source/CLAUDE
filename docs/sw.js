@@ -1,6 +1,6 @@
 // Офлайн-кэш приложения. При выпуске новой версии меняйте VERSION —
 // телефоны скачают обновление при следующем запуске.
-const VERSION = 'traty-v5';
+const VERSION = 'traty-v6';
 const ASSETS = [
   './',
   'index.html',

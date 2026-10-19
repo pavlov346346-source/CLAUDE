@@ -116,7 +116,10 @@ svg.i.inline {
 
 #app {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-h, 100%);
 }
 
 .view {
@@ -783,7 +786,7 @@ div.fx-chip span {
 /* ───────── Нижняя панель ───────── */
 
 .tabbar {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
@@ -839,7 +842,10 @@ div.fx-chip span {
 
 .sheet-wrap {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-h, 100%);
   z-index: 50;
 }
 .backdrop {
@@ -1610,9 +1616,9 @@ select.row-input {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 18px);
+  top: calc(var(--app-h, 100vh) - var(--tabbar-h) - var(--safe-bottom) - 18px);
   z-index: 100;
-  transform: translate(-50%, 20px);
+  transform: translate(-50%, calc(20px - 100%));
   opacity: 0;
   pointer-events: none;
   display: flex;
@@ -1632,7 +1638,7 @@ select.row-input {
 }
 .toast.show {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, -100%);
   pointer-events: auto;
 }
 .toast button {
