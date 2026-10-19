@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.5';
+const VERSION = '1.6';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -619,6 +619,8 @@ function closeSheet(api) {
   api.wrap.classList.remove('open');
   setTimeout(() => api.wrap.remove(), 380);
   if (api.onClose) api.onClose();
+  // отложенное обновление — после того как закрыли последнее окно
+  if (!sheets.length && updateReady) setTimeout(applyUpdate, 400);
 }
 
 function enableDrag(api) {
@@ -1410,13 +1412,45 @@ render();
 if (!store.device.name) openWelcome();
 sync.run();
 
+/* ───────────────────────── Обновления ───────────────────────── */
+
+// Новая версия ставится сама: проверяем её при каждом открытии приложения
+// и перезагружаемся, как только она готова (но не посреди ввода).
+let updateReady = false;
+
+function applyUpdate() {
+  if (!updateReady || sheets.length) return;
+  updateReady = false;
+  try {
+    sessionStorage.setItem('traty.updated', '1');
+  } catch {
+    /* ignore */
+  }
+  location.reload();
+}
+
+try {
+  if (sessionStorage.getItem('traty.updated')) {
+    sessionStorage.removeItem('traty.updated');
+    setTimeout(() => toast(`Приложение обновлено до версии ${VERSION} ✨`), 600);
+  }
+} catch {
+  /* ignore */
+}
+
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-  let reloading = false;
+  navigator.serviceWorker
+    .register('sw.js')
+    .then((reg) => {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && reg) reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloading || sheets.length) return;
-    reloading = true;
-    location.reload();
+    if (!hadController) return;
+    updateReady = true;
+    applyUpdate();
   });
 }
