@@ -30,6 +30,8 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* отступ снизу под полоску «домой»; уменьшается, если под окном есть полоса (см. html.gap) */
+  --bottom-inset: var(--safe-bottom);
   --tabbar-h: 58px;
 }
 
@@ -128,7 +130,7 @@ svg.i.inline {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 28px);
+  padding-bottom: calc(var(--tabbar-h) + var(--bottom-inset) + 28px);
 }
 
 /* ───────── Верхняя панель и «шапка» с суммой ───────── */
@@ -791,8 +793,8 @@ div.fx-chip span {
   right: 0;
   bottom: 0;
   z-index: 10;
-  height: calc(var(--tabbar-h) + var(--safe-bottom));
-  padding-bottom: var(--safe-bottom);
+  height: calc(var(--tabbar-h) + var(--bottom-inset));
+  padding-bottom: var(--bottom-inset);
   display: flex;
   justify-content: center;
   align-items: stretch;
@@ -867,7 +869,7 @@ div.fx-chip span {
   flex-direction: column;
   background: var(--card);
   border-radius: 24px 24px 0 0;
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: var(--bottom-inset);
   transform: translateY(105%);
   transition: transform 0.38s cubic-bezier(0.2, 0.9, 0.25, 1);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.18);
@@ -1616,7 +1618,7 @@ select.row-input {
 .toast {
   position: fixed;
   left: 50%;
-  top: calc(var(--app-h, 100vh) - var(--tabbar-h) - var(--safe-bottom) - 18px);
+  top: calc(var(--app-h, 100vh) - var(--tabbar-h) - var(--bottom-inset) - 18px);
   z-index: 100;
   transform: translate(-50%, calc(20px - 100%));
   opacity: 0;
@@ -1649,6 +1651,20 @@ select.row-input {
   .toast {
     background: rgba(58, 58, 64, 0.95);
   }
+}
+
+/* iOS: окно установленного приложения бывает ниже экрана (на высоту строки
+   состояния), и полосу под ним телефон закрашивает фоном страницы. Красим её
+   цветом нижней панели (или открытого окна) — снизу получается сплошная панель. */
+html.gap {
+  --bottom-inset: max(0px, calc(var(--safe-bottom) - var(--gap, 0px)));
+  background: var(--card);
+}
+html.gap .tabbar {
+  background: var(--card);
+}
+html.gap.sheet-tall {
+  background: var(--bg);
 }
 
 @media (prefers-reduced-motion: reduce) {

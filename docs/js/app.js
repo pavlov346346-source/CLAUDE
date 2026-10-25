@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.6';
+const VERSION = '1.7';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -51,8 +51,8 @@ const standalone = navigator.standalone === true || matchMedia('(display-mode: s
 
 const cur = () => store.cfg.currency || '₽';
 const money = (c) => F.money(c, cur());
-// для узких мест: миллионы сокращаем до «12,7 млн» (валюта видна в большой сумме рядом)
-const moneyFit = (c) => (c >= 1e8 ? F.compact(c) : money(c));
+// для узких мест: длинные суммы сокращаем до «250 тыс» / «12,7 млн» (валюта видна в большой сумме рядом)
+const moneyFit = (c) => (money(c).length > 9 ? F.compact(c) : money(c));
 const sum = (list) => list.reduce((a, e) => a + e.amount, 0);
 const colorVar = (name) => `var(--c-${COLORS.includes(name) ? name : 'gray'})`;
 const catOf = (id) => store.catMap[store.canon(id)] || { id, emoji: '❔', name: 'Без категории', color: 'gray' };
@@ -69,7 +69,7 @@ let fxState = { loading: false, failed: false, asked: 0 };
 const curCode = () => (CURRENCIES.find(([s]) => s === cur()) || [])[2];
 const fxCents = (c) => (fx.k === 1 ? c : Math.round((c * fx.k) / 100) * 100);
 const sm = (c) => F.money(fxCents(c), fx.cur);
-const smFit = (c) => (fxCents(c) >= 1e8 ? F.compact(fxCents(c)) : sm(c));
+const smFit = (c) => (sm(c).length > 9 ? F.compact(fxCents(c)) : sm(c));
 const fmtRate = (v) => v.toLocaleString('ru-RU', { maximumFractionDigits: v >= 100 ? 1 : v >= 1 ? 2 : 4 });
 
 // курс текущей валюты к рублю (из кэша; при необходимости подгружаем свежий)
@@ -605,6 +605,7 @@ function openSheet({ html, cls = '', onMount, refresh, dismissible = true }) {
     if (ev.target.closest('[data-act="close"]')) api.close();
   });
   enableDrag(api);
+  paintGap();
   if (onMount) onMount(api);
   return api;
 }
@@ -618,6 +619,7 @@ function closeSheet(api) {
   api.el.style.transform = '';
   api.wrap.classList.remove('open');
   setTimeout(() => api.wrap.remove(), 380);
+  paintGap();
   if (api.onClose) api.onClose();
   // отложенное обновление — после того как закрыли последнее окно
   if (!sheets.length && updateReady) setTimeout(applyUpdate, 400);
@@ -1396,12 +1398,22 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // iOS: у приложения на экране «Домой» окно бывает ниже экрана на высоту строки
-// состояния, и снизу остаётся серая полоса — растягиваем интерфейс до края сами
+// состояния. Рисовать в полосе под окном нельзя (всё обрезается), поэтому
+// интерфейс остаётся в окне, а полоса красится в цвет нижней панели.
 function fitHeight() {
-  let h = window.innerHeight;
-  if (isIOS && standalone && matchMedia('(orientation: portrait)').matches && screen.height > h) h = screen.height;
-  document.documentElement.style.setProperty('--app-h', h + 'px');
+  const h = window.innerHeight;
+  const root = document.documentElement;
+  root.style.setProperty('--app-h', h + 'px');
+  const gap = isIOS && standalone && matchMedia('(orientation: portrait)').matches ? screen.height - h : 0;
+  root.classList.toggle('gap', gap > 20);
+  root.style.setProperty('--gap', Math.max(0, gap) + 'px');
   if (window.scrollY) window.scrollTo(0, 0);
+}
+
+// цвет полосы под окном — как у верхнего открытого окна
+function paintGap() {
+  const top = sheets[sheets.length - 1];
+  document.documentElement.classList.toggle('sheet-tall', !!top && top.el.classList.contains('tall'));
 }
 fitHeight();
 window.addEventListener('resize', fitHeight);
