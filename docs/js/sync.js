@@ -54,10 +54,17 @@ export class Sync {
     return () => this.listeners.delete(fn);
   }
 
-  setState(state, error = '') {
+  setState(state, error = '', code = '') {
     this.state = state;
     this.error = error;
+    // во время повторной попытки помним прошлую ошибку, чтобы предупреждение не мигало
+    if (state !== 'busy') this.errorCode = code;
     for (const fn of this.listeners) fn();
+  }
+
+  // токен истёк или отозван — нужен новый (записи тем временем копятся на телефоне)
+  get needsToken() {
+    return this.connected && this.errorCode === 'auth';
   }
 
   save() {
@@ -137,6 +144,9 @@ export class Sync {
     if (!res.ok) throw new SyncError('http', `GitHub ответил ${res.status}`);
     const user = await res.json();
     const gist = await this.findOrCreateGist(token);
+    // новый токен от другого аккаунта — другое хранилище: отправим туда всё, что знаем
+    const prevGist = this.cfg && this.cfg.gist;
+    if (prevGist && prevGist !== gist) this.store.detachRemote();
     this.cfg = { token, login: user.login, gist, etag: '', last: 0 };
     this.own = { name: '', recs: {} };
     ls.set('own', this.own);
@@ -181,7 +191,7 @@ export class Sync {
       this.setState('idle');
     } catch (e) {
       const code = e.code || 'http';
-      this.setState(code === 'offline' ? 'offline' : 'error', e.message || 'Ошибка синхронизации');
+      this.setState(code === 'offline' ? 'offline' : 'error', e.message || 'Ошибка синхронизации', code);
     } finally {
       this.running = false;
       if (this.again) {

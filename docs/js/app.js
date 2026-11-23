@@ -5,7 +5,7 @@ import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.7';
+const VERSION = '1.8';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -152,6 +152,15 @@ function budgetBlock(total, ym, isCur) {
   </div>`;
 }
 
+function tokenBanner() {
+  const n = store.pendingCount;
+  return `<div class="banner warn" data-act="token-renew" role="button">
+    <span class="banner-ico">🔑</span>
+    <span class="banner-text"><b>Синхронизация остановилась</b>Токен GitHub перестал работать (скорее всего, закончился срок).
+      ${n ? `${n} ${F.plural(n, ['запись ждёт', 'записи ждут', 'записей ждут'])} отправки и сохранены на этом телефоне. ` : ''}Нажмите, чтобы вставить новый токен.</span>
+  </div>`;
+}
+
 function banners() {
   let out = '';
   if (isIOS && !standalone && !dismissed('install')) {
@@ -222,6 +231,7 @@ function homeView() {
     </div>
   </section>
   <div class="content">
+    ${sync.needsToken ? tokenBanner() : ''}
     ${isCur ? banners() : ''}
     ${groups}
   </div>`;
@@ -532,6 +542,9 @@ view.addEventListener('click', (ev) => {
       break;
     case 'sync-setup':
       openSyncSetup();
+      break;
+    case 'token-renew':
+      openSyncSetup({ renew: true });
       break;
     case 'mode':
       ui.mode = t.dataset.m;
@@ -1005,8 +1018,10 @@ function syncGroup() {
       <span class="row-main"><b>${sync.state === 'error' || sync.state === 'offline' ? F.esc(b.label) : 'Подключено'}</b>
       <small>GitHub @${F.esc(sync.cfg.login || '')} · ${sync.state === 'busy' ? 'синхронизация…' : timeAgo(sync.cfg.last)}${pending ? ` · ждут отправки: ${pending}` : ''}</small></span></div>
     ${cloudInfo()}
+    ${sync.needsToken ? `<button class="row accent" data-act="token-renew">${icon('note', 18, 'lead')}Вставить новый токен${icon('right', 18, 'chev')}</button>` : ''}
     <button class="row" data-act="sync-now">${icon('sync', 18, 'lead')}Синхронизировать сейчас</button>
     <button class="row" data-act="copy-token">${icon('copy', 18, 'lead')}Скопировать токен для второго телефона</button>
+    ${sync.needsToken ? '' : `<button class="row" data-act="token-renew">${icon('note', 18, 'lead')}Сменить токен</button>`}
     <button class="row danger" data-act="disconnect">Отключить на этом телефоне</button>`;
 }
 
@@ -1085,6 +1100,9 @@ function openSettings() {
           case 'sync-setup':
             openSyncSetup();
             break;
+          case 'token-renew':
+            openSyncSetup({ renew: true });
+            break;
           case 'sync-now':
             await sync.run();
             toast(sync.state === 'idle' ? 'Всё синхронизировано' : sync.error || 'Нет связи');
@@ -1135,18 +1153,22 @@ function openSettings() {
   });
 }
 
-function openSyncSetup() {
-  const html = `${head('<button class="link" data-act="close">Отмена</button>', 'Синхронизация', '')}
+function openSyncSetup({ renew = false } = {}) {
+  const lead = renew
+    ? 'Старый токен перестал работать — обычно потому, что у него закончился срок. Ничего не потеряется: все записи остаются в вашем GitHub и на телефоне. Создайте новый токен и вставьте его здесь, а потом — на втором телефоне.'
+    : 'Записи будут храниться в вашем аккаунте GitHub, в приватном хранилище (gist). Чтобы оба телефона видели одни и те же записи, на обоих нужно ввести <b>один и тот же токен</b>.';
+  const html = `${head('<button class="link" data-act="close">Отмена</button>', renew ? 'Новый токен' : 'Синхронизация', '')}
   <div class="sheet-scroll pad">
-    <p class="lead">Записи будут храниться в вашем аккаунте GitHub, в приватном хранилище (gist). Чтобы оба телефона видели одни и те же записи, на обоих нужно ввести <b>один и тот же токен</b>.</p>
+    <p class="lead">${lead}</p>
     <div class="step"><span class="step-n">1</span><div class="step-body">
       <b>Создайте токен</b>
-      <p>Это нужно сделать один раз, на первом телефоне. На GitHub в поле <i>Expiration</i> выберите <i>No expiration</i>, убедитесь, что стоит галочка <i>gist</i>, нажмите внизу <i>Generate token</i> и скопируйте токен.</p>
+      <p>${renew ? 'На одном из телефонов.' : 'Это нужно сделать один раз, на первом телефоне.'} На GitHub войдите в тот же аккаунт, убедитесь, что стоит галочка <i>gist</i>, нажмите внизу <i>Generate token</i> и скопируйте токен.</p>
+      <p class="must">В поле <i>Expiration</i> обязательно выберите <b>No expiration</b> — иначе через 30 дней токен перестанет работать.</p>
       <a class="btn ghost" href="${TOKEN_URL}" target="_blank" rel="noopener">Открыть GitHub ${icon('external', 16)}</a>
     </div></div>
     <div class="step"><span class="step-n">2</span><div class="step-body">
       <b>Вставьте токен</b>
-      <p>На втором телефоне начинайте сразу отсюда — токен можно скопировать в настройках первого телефона.</p>
+      <p>${renew ? 'На втором телефоне откройте Настройки → «Вставить новый токен» и вставьте этот же токен — его можно скопировать в настройках этого телефона.' : 'На втором телефоне начинайте сразу отсюда — токен можно скопировать в настройках первого телефона.'}</p>
       <div class="token-row">
         <input class="text-input token-input" placeholder="ghp_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button class="btn small" data-act="paste">Вставить</button>
@@ -1180,7 +1202,7 @@ function openSyncSetup() {
           try {
             await sync.connect(input.value);
             api.close();
-            toast('Синхронизация включена ✨');
+            toast(renew ? 'Новый токен подключён — всё синхронизировано ✨' : 'Синхронизация включена ✨');
           } catch (e) {
             err.textContent = e.message || 'Не получилось подключиться';
             err.hidden = false;
@@ -1376,8 +1398,13 @@ store.on(() => {
   render();
   for (const s of sheets) if (s.refresh) s.refresh(s);
 });
+let shownNeedsToken = sync.needsToken;
 sync.on(() => {
   updateSyncButtons();
+  if (sync.needsToken !== shownNeedsToken) {
+    shownNeedsToken = sync.needsToken;
+    render();
+  }
   for (const s of sheets) if (s.refresh) s.refresh(s);
 });
 
