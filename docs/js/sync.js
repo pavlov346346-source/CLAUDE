@@ -10,8 +10,11 @@ const MARKER = '_traty.json';
 const FILE_RE = /^d-[a-z0-9]+-\d{4}-\d{2}\.json$/;
 const POLL_MS = 20000;
 
-export const TOKEN_URL =
-  'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Деньги любят (приложение)');
+// GitHub требует уникальное название токена — добавляем дату и время
+export function tokenUrl() {
+  const now = new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return 'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent(`Деньги любят ${now}`);
+}
 
 class SyncError extends Error {
   constructor(code, message) {

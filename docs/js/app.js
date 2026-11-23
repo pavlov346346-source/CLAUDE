@@ -1,11 +1,11 @@
 import { Store, ls, COLORS, uid } from './store.js';
-import { Sync, TOKEN_URL } from './sync.js';
+import { Sync, tokenUrl } from './sync.js';
 import * as F from './format.js';
 import { bars, donut, stack } from './charts.js';
 import { icon } from './icons.js';
 import { cachedRate, isStale, fetchRate } from './rates.js';
 
-const VERSION = '1.8';
+const VERSION = '1.9';
 const CURRENCIES = [
   ['₽', 'российский рубль', 'RUB'],
   ['Rp', 'индонезийская рупия', 'IDR'],
@@ -1164,7 +1164,7 @@ function openSyncSetup({ renew = false } = {}) {
       <b>Создайте токен</b>
       <p>${renew ? 'На одном из телефонов.' : 'Это нужно сделать один раз, на первом телефоне.'} На GitHub войдите в тот же аккаунт, убедитесь, что стоит галочка <i>gist</i>, нажмите внизу <i>Generate token</i> и скопируйте токен.</p>
       <p class="must">В поле <i>Expiration</i> обязательно выберите <b>No expiration</b> — иначе через 30 дней токен перестанет работать.</p>
-      <a class="btn ghost" href="${TOKEN_URL}" target="_blank" rel="noopener">Открыть GitHub ${icon('external', 16)}</a>
+      <a class="btn ghost" href="${tokenUrl()}" target="_blank" rel="noopener">Открыть GitHub ${icon('external', 16)}</a>
     </div></div>
     <div class="step"><span class="step-n">2</span><div class="step-body">
       <b>Вставьте токен</b>
